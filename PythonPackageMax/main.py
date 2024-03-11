@@ -1,5 +1,14 @@
+import os, sys
+
 from mpi4py import MPI
 import numpy as np
+
+#Local Imports
+parent_dir = os.path.join(os.path.dirname(__file__), '..')
+normalized_path = os.path.normpath(parent_dir)
+sys.path.append(normalized_path)
+from utils import *
+from dgd_helpers import *
 
 # MPI initialization
 comm = MPI.COMM_WORLD
@@ -8,7 +17,7 @@ rank = comm.Get_rank() # The current process ID
 
 # Assuming your data is somehow distributed or replicated across nodes
 # Load your data here. This could vary greatly depending on your application.
-data = load_data_for_node(rank)
+data = load_data_for_node(rank,size)
 
 # Initialize your model parameters
 model_params = initialize_model_parameters()
