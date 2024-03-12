@@ -129,27 +129,27 @@ def compute_adjacent_energy(s,q,params):
 
     return(sum_prob_diff_total)
 
-# # conversion functions for vectors and tensors. 
-# def tensor_array_to_vector(tensor_array):
-#     """
-#     Function to convert params from [inp_fields, inp_couplings] form to single 1D array form
+# # # conversion functions for vectors and tensors. 
+# # def tensor_array_to_vector(tensor_array):
+# #     """
+# #     Function to convert params from [inp_fields, inp_couplings] form to single 1D array form
 
-#     Inputs:
-#         tensor_array_form = list, expects [inp_fields, inp_couplings] format where both elements of list are numpy arrays
-#         NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
-#     """
-#     inp_fields = tensor_array[0]
-#     inp_couplings = tensor_array[1]
-#     return np.concatenate((inp_fields.flatten(), inp_couplings.flatten()))
+# #     Inputs:
+# #         tensor_array_form = list, expects [inp_fields, inp_couplings] format where both elements of list are numpy arrays
+# #         NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+# #     """
+# #     inp_fields = tensor_array[0]
+# #     inp_couplings = tensor_array[1]
+# #     return np.concatenate((inp_fields.flatten(), inp_couplings.flatten()))
 
-# def vector_to_tensor_array(vector, L, q):
-#     """
-#     Function to convert params from 1D vector form to [inp_fields, inp_couplings] form
+# # def vector_to_tensor_array(vector, L, q):
+# #     """
+# #     Function to convert params from 1D vector form to [inp_fields, inp_couplings] form
 
-#     Inputs:
-#         vector = np.ndarray, expects [....] format where components can be reshapen into fields and couplings arrays
-#         NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
-#     """
-#     inp_fields = np.reshape(vector[:L*q], (L,q))
-#     inp_couplings = np.reshape(vector[L*q:], (L,L,q,q))
-#     return [inp_fields, inp_couplings]
+# #     Inputs:
+# #         vector = np.ndarray, expects [....] format where components can be reshapen into fields and couplings arrays
+# #         NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+# #     """
+# #     inp_fields = np.reshape(vector[:L*q], (L,q))
+# #     inp_couplings = np.reshape(vector[L*q:], (L,L,q,q))
+# #     return [inp_fields, inp_couplings]
