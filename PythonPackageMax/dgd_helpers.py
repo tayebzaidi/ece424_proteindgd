@@ -1,7 +1,8 @@
 import numpy as np
+# from utils import * # necessary for downstream functions
 
 # compute KL objective function 
-def objective(params, sequences, L, q, N, ep):
+def compute_objective_notheta(params, sequences, L, q, N, ep):
     sum_prob_diffs = 0; 
     for n in range(N): # for all sequences
         sn = sequences[n,:] # extract nth row
@@ -9,7 +10,7 @@ def objective(params, sequences, L, q, N, ep):
     return ep*sum_prob_diffs/N
 
 # compute gradient
-def gradient(params, sequences, L, q, N, ep):
+def compute_gradient_notheta(params, sequences, L, q, N, ep):
     grads_fields = np.zeros((L,q)); # gradient of field terms
     grads_couplings = np.zeros((L,L,q,q))
     for n in range(N): # for all sequences
@@ -128,27 +129,27 @@ def compute_adjacent_energy(s,q,params):
 
     return(sum_prob_diff_total)
 
-# conversion functions for vectors and tensors. 
-def tensor_array_to_vector(tensor_array):
-    """
-    Function to convert params from [inp_fields, inp_couplings] form to single 1D array form
+# # conversion functions for vectors and tensors. 
+# def tensor_array_to_vector(tensor_array):
+#     """
+#     Function to convert params from [inp_fields, inp_couplings] form to single 1D array form
 
-    Inputs:
-        tensor_array_form = list, expects [inp_fields, inp_couplings] format where both elements of list are numpy arrays
-        NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
-    """
-    inp_fields = tensor_array[0]
-    inp_couplings = tensor_array[1]
-    return np.concatenate((inp_fields.flatten(), inp_couplings.flatten()))
+#     Inputs:
+#         tensor_array_form = list, expects [inp_fields, inp_couplings] format where both elements of list are numpy arrays
+#         NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+#     """
+#     inp_fields = tensor_array[0]
+#     inp_couplings = tensor_array[1]
+#     return np.concatenate((inp_fields.flatten(), inp_couplings.flatten()))
 
-def vector_to_tensor_array(vector, L, q):
-    """
-    Function to convert params from 1D vector form to [inp_fields, inp_couplings] form
+# def vector_to_tensor_array(vector, L, q):
+#     """
+#     Function to convert params from 1D vector form to [inp_fields, inp_couplings] form
 
-    Inputs:
-        vector = np.ndarray, expects [....] format where components can be reshapen into fields and couplings arrays
-        NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
-    """
-    inp_fields = np.reshape(vector[:L*q], (L,q))
-    inp_couplings = np.reshape(vector[L*q:], (L,L,q,q))
-    return [inp_fields, inp_couplings]
+#     Inputs:
+#         vector = np.ndarray, expects [....] format where components can be reshapen into fields and couplings arrays
+#         NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+#     """
+#     inp_fields = np.reshape(vector[:L*q], (L,q))
+#     inp_couplings = np.reshape(vector[L*q:], (L,L,q,q))
+#     return [inp_fields, inp_couplings]
