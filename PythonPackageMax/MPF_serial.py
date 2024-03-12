@@ -14,6 +14,7 @@ sequence_data = data["full_align"] # numpy array of sequences
 sequence_data -= 1; # to account for python vs. matlab starting integers
 sequence_data = sequence_data[:1000,:]
 
+
 L = sequence_data.shape[1] # sequence length
 N = sequence_data.shape[0] # number of sequences
 q = 3; #hardcoded, did not save MUST SAVE IN NEW BENCHMARKS
@@ -21,7 +22,7 @@ ep = 1; # this will just be a multiplier on the gradient descent step
 
 
 alpha = 1e-2; # stepsize
-max_iter = int(1e3); # maximum iterations
+max_iter = int(5e2); # maximum iterations
 tol = 1e-8; # tolerance criterion on gradient norm
 output_level = 2;  
 
@@ -32,7 +33,6 @@ init_params = [init_fields, init_couplings]
 init_theta = tensor_array_to_vector(init_params)
 
 # compute initial grad, initial objective
-# note: there is something fishy going on if I use the version in utils.py
 obj_val = compute_objective(init_theta, sequence_data, L, q, N, ep)
 init_grad = compute_gradient(init_theta, sequence_data, L, q, N, ep)
 norm_theta_k = np.linalg.norm(init_theta,np.inf)
@@ -75,20 +75,23 @@ for k in range(max_iter):
     
     # check convergence criteria NOTE: conv criteria on norm of gradient doesnt work? 
     if delta_f < tol:
-        print("Iteration converged successfully to tolerance")
-        print('%6i %9.2e %12.2e %9.2e' %
-        (k, obj_val, delta_f, alpha))
-    
+        print('Iteration converged successfully to tolerance')
         break
         
     # print iterations
     if output_level >= 2 and k % 1 == 0:
-    # Print the output header every 100 iterations
+    # Print the output header every 10 iterations
         if (k+1) % 10 == 0:
             print(output_header)
         print('%6i %9.2e %12.2e %9.2e' %
                 (k, obj_val, delta_f, alpha))
-    
+        
+if output_level >= 1:
+    print('Final objective.................: %g' % obj_val)
+    print('|Delta_obj| at final point.........: %g' % delta_f)
+    print('Number of iterations............: %d' % k)
+    print('')
+
 # display results
 results = vector_to_tensor_array(theta_k, L, q)
 out_fields = results[0]
