@@ -1,25 +1,94 @@
-def compute_gradient():
-    params = vector_to_tensor_array(theta, L, q)
-    sum_prob_diffs = 0; # sum of all probability differences
-    for n in range(N): # for all sequences
-        sn = sequences[n,:] # extract nth row
-        sum_prob_diffs += energy_gradient(sn,q,params)
-    return ep*sum_prob_diffs/N
+import numpy as np
 
-def compute_objective():
-    params = vector_to_tensor_array(theta, L, q)
-    sum_prob_diffs = 0;
+# compute KL objective function 
+def objective(params, sequences, L, q, N, ep):
+    sum_prob_diffs = 0; 
     for n in range(N): # for all sequences
         sn = sequences[n,:] # extract nth row
         sum_prob_diffs += compute_adjacent_energy(sn,q,params)
     return ep*sum_prob_diffs/N
 
-def load_data_for_node(rank,size):
-    return 1
+# compute gradient
+def gradient(params, sequences, L, q, N, ep):
+    grads_fields = np.zeros((L,q)); # gradient of field terms
+    grads_couplings = np.zeros((L,L,q,q))
+    for n in range(N): # for all sequences
+        sn = sequences[n,:] # extract nth row
+        res = energy_gradient(sn,q,params) # compute gradients for field and couplings
+        grads_fields += res[0]
+        grads_couplings += res[1]
 
-def initialize_model_parameters():
-    return 1
+    return ep*grads_fields/N, ep*grads_couplings/N
 
+# compute sequence energy
+def energy_gradient(s,q,params):
+    '''
+    Function to compute the sum of the differences of energy gradients of sequence s with all adjacent sequences
+
+    Inputs:
+        s = np.array, represents sequence of integers 0:(q-1) (NOT CURRENTLY 1:q)
+        q = int, length of sequence
+        params = list, contains fields and couplings [fields.shape = (L,q), couplings.shape = (L,L,q,q)]
+        NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+
+    '''
+    u = np.copy(s)
+
+    L = s.shape[0] # length of sequence
+    fields = np.zeros((L,q))
+    couplings = np.zeros((L,L,q,q))
+    original_seq_energy = compute_energy(s, params)
+
+    for pos in range(L): # for each position to differ in
+        for qi in range(q): # for each possible flip in this position
+            if s[pos] != qi:
+                u[pos] = qi
+            else:
+                continue
+
+            exp_diff = np.exp(0.5*(original_seq_energy - compute_energy(u, params)))
+
+            for j in range(L):
+                fields[j,s[j]] += exp_diff
+                fields[j,u[j]] -= exp_diff
+
+                for i in range(j):
+                    couplings[i,j,s[i],s[j]] += exp_diff
+                    couplings[i,j,u[i],u[j]] -= exp_diff
+
+        #Undo the adjacency adjustment at position "pos"
+        u[pos] = s[pos]
+
+    return fields, couplings
+
+# compute energy of sequence given model
+def compute_energy(s,params):
+    '''
+    Function to compute the energy of a sequence s
+    Not efficient for computing KL divergence objective or gradients
+
+    Inputs:
+        s = np.array, represents sequence of integers 0:(q-1) (NOT CURRENTLY 1:q)
+        q = int, length of sequence
+        params = list, contains fields and couplings [fields.shape = (L,q), couplings.shape = (L,L,q,q)]
+        NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+
+    '''
+    L = s.shape[0] # length of sequence
+    inp_fields = params[0] # field params
+    inp_couplings = params[1] # coupling params
+
+    energy = 0; 
+    for j in range(L):
+        #print(energy, inp_fields, L, j, s[j])
+        energy += inp_fields[j,s[j]] # add field energy from position i
+        for i in range(j):
+            energy += inp_couplings[i,j,s[i],s[j]] # add coupling energy from positions i,j
+
+    return energy
+
+
+# compute the sum of energy differences to all adjacent sequences
 def compute_adjacent_energy(s,q,params):
     '''
     Function to compute energy differences of all adjacent sequences to s and then sum the results. i.e.
@@ -59,10 +128,27 @@ def compute_adjacent_energy(s,q,params):
 
     return(sum_prob_diff_total)
 
-def gradient(theta, sequences, L, q, N, ep):
-    params = vector_to_tensor_array(theta, L, q)
-    sum_prob_diffs = 0; # sum of all probability differences
-    for n in range(N): # for all sequences
-        sn = sequences[n,:] # extract nth row
-        sum_prob_diffs += energy_gradient(sn,q,params)
-    return ep*sum_prob_diffs/N
+# conversion functions for vectors and tensors. 
+def tensor_array_to_vector(tensor_array):
+    """
+    Function to convert params from [inp_fields, inp_couplings] form to single 1D array form
+
+    Inputs:
+        tensor_array_form = list, expects [inp_fields, inp_couplings] format where both elements of list are numpy arrays
+        NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+    """
+    inp_fields = tensor_array[0]
+    inp_couplings = tensor_array[1]
+    return np.concatenate((inp_fields.flatten(), inp_couplings.flatten()))
+
+def vector_to_tensor_array(vector, L, q):
+    """
+    Function to convert params from 1D vector form to [inp_fields, inp_couplings] form
+
+    Inputs:
+        vector = np.ndarray, expects [....] format where components can be reshapen into fields and couplings arrays
+        NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+    """
+    inp_fields = np.reshape(vector[:L*q], (L,q))
+    inp_couplings = np.reshape(vector[L*q:], (L,L,q,q))
+    return [inp_fields, inp_couplings]
