@@ -17,10 +17,13 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size() # Total number of processes
 rank = comm.Get_rank() # The current process ID
 
+# Determine neighbors in the ring topology
+left_neighbor = (rank - 1) % size
+right_neighbor = (rank + 1) % size
+
 # Assuming your data is somehow distributed or replicated across nodes
 # Load your data here. This could vary greatly depending on your application.
 sequence_data = load_data_for_node(comm, rank,size)
-print(sequence_data[0:2,:])
 
 # Initialize your model parameters
 L = sequence_data.shape[1] # sequence length
@@ -30,8 +33,8 @@ ep = 1; # this will just be a multiplier on the gradient descent step
 
 
 alpha = 1e-2; # stepsize
-max_iter = int(1e1); # maximum iterations
-tol = 1e-6; # tolerance criterion on gradient norm
+max_iter = int(1e3); # maximum iterations
+tol = 1e-8; # tolerance criterion on gradient norm
 
 # start with initial parameter set
 init_fields = np.zeros((L,q))
@@ -45,35 +48,39 @@ theta_k = np.copy(init_theta)
 if rank == 0:
     objective_values = np.zeros([max_iter])
 
+# Consensus matrix
+P = np.full((size, size), 1.0/size)
+
 for iteration in range(max_iter):
     # Compute local gradients based on local data and model parameters
     local_gradient = compute_gradient(theta_k, sequence_data, L, q, N, ep)
         
-    res = sp.optimize.line_search(compute_objective, compute_gradient, theta_k, -local_gradient, 
-                                args=(sequence_data, L, q, N, ep))
-    alpha = res[0]
-    print("Alpha: {:.4f}".format(alpha))
-
     # Update model parameters
     theta_k -= alpha * local_gradient
 
-    consensus_theta = np.zeros_like(theta_k)
-    comm.Allreduce(theta_k, consensus_theta, op=MPI.SUM)
+    # Prepare buffers for non-blocking sends and receives
+    recv_buffer_left = np.zeros_like(theta_k)
+    recv_buffer_right = np.zeros_like(theta_k)
+    reqs = []
 
-    # Scale the consensus parameters according to the consensus matrix
-    # For a complete graph and uniform consensus matrix, this is a simple averaging
-    theta_k = consensus_theta / size
+    # Non-blocking send to the right neighbor and non-blocking receive from the left neighbor
+    reqs.append(comm.Isend(theta_k, dest=right_neighbor))
+    reqs.append(comm.Irecv(recv_buffer_left, source=left_neighbor))
+    
+    # Non-blocking send to the left neighbor and non-blocking receive from the right neighbor
+    reqs.append(comm.Isend(theta_k, dest=left_neighbor))
+    reqs.append(comm.Irecv(recv_buffer_right, source=right_neighbor))
+
+    # Wait for all non-blocking operations to complete
+    MPI.Request.Waitall(reqs)
+
+    # Average parameters from left, right, and self
+    theta_k = (theta_k + recv_buffer_left + recv_buffer_right) / 3
 
     if rank == 0:
         objective_values[iteration] = compute_objective(theta_k, sequence_data, L, q, N, ep)
-        if iteration % 100 == 0:
-            print("Iteration: {}, Objective Value: {:.3f}".format(iteration, objective_values[iteration]))
+        print("Iteration: {}, Objective Value: {:.3f}".format(iteration, objective_values[iteration]))
 
-        #Check for convergence
-        delta_f = abs(objective_values[iteration-1] - objective_values[iteration])
-        if delta_f < tol:
-            print("Iterations objective converged to within tolerance")
-            break_trigger = 1
 
 # Prepare a container on rank 0 to receive the reduced sum of model parameters
 if rank == 0:
@@ -92,8 +99,6 @@ if rank == 0:
     norm_couplings = np.linalg.norm(out_couplings, ord='fro', axis=(2,3))
     norm_couplings = norm_couplings + norm_couplings.T
 
-    print(norm_couplings)
-
     plt.imshow(norm_couplings)
     plt.colorbar()
 
@@ -110,9 +115,3 @@ if rank == 0:
 
 # Finalize MPI (not strictly necessary in scripts, but good practice)
 MPI.Finalize()
-
-
-"""
-## Notes -- iterates to converge to given tolerance
-
-"""

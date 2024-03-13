@@ -11,15 +11,12 @@ def load_data_for_node(comm, rank, size):
         sequence_data -= 1; # to account for python vs. matlab starting integers
     
         ##Apportion correct amounts of data to each node
-        total_seqs = 1024
+        total_seqs = 256 # Must be a power of two
         seq_per_node = total_seqs // size # Assume evenly divisible (power of twos only)
         data_chunks = [sequence_data[i* seq_per_node:(i+1) * seq_per_node] for i in range(size)]
-        print(data_chunks)
+        #print(data_chunks[0:2,:])
     else:
         data_chunks = None
     
     data_subsection = comm.scatter(data_chunks, root=0)
     return data_subsection
-
-def initialize_model_parameters():
-    return 1
