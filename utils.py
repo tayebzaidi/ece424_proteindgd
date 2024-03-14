@@ -74,7 +74,7 @@ def energy_gradient(s,q,params):
     L = s.shape[0] # length of sequence
     fields = np.zeros((L,q))
     couplings = np.zeros((L,L,q,q))
-    original_seq_energy = compute_energy(s,q,params)
+    original_seq_energy = compute_energy_vect(s,q,params)
 
     for pos in range(L): # for each position to differ in
         for qi in range(q): # for each possible flip in this position
@@ -83,7 +83,7 @@ def energy_gradient(s,q,params):
             else:
                 continue
 
-            exp_diff = np.exp(0.5*(original_seq_energy - compute_energy(u,q,params)))
+            exp_diff = np.exp(0.5*(original_seq_energy - compute_energy_vect(u,q,params)))
 
             for j in range(L):
                 fields[j,s[j]] += exp_diff
@@ -179,6 +179,19 @@ def compute_energy(s,q,params):
             energy += inp_couplings[i,j,s[i],s[j]] # add coupling energy from positions i,j
 
     return energy
+
+def compute_energy_vect(s, q, params):
+    L = s.shape[0]
+    inp_fields = params[0]
+    inp_couplings = params[1]
+
+    # Compute the field energy
+    field_energy = np.sum(inp_fields[np.arange(L), s])
+
+    # Compute the coupling energy
+    coupling_energy = np.sum(inp_couplings[np.triu_indices(L, k=1)][:, s[:-1], s[1:]])
+
+    return field_energy + coupling_energy
 
 def tensor_array_to_vector(tensor_array):
     """

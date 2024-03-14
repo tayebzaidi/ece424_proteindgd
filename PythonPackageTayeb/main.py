@@ -16,11 +16,11 @@ from dgd_helpers import *
 
 
 if __name__ == "__main__":
-    num_processor_list = [1,2,4,8]
+    num_processor_list = [2,4,8]
 
     for num_processors in num_processor_list:
         command = f"python benchmarking_functions.py {num_processors}"
-        mpi_command = f"mpirun -np {num_processors} {command}"
+        mpi_command = f"export MPIPROFILE=1; mpirun -np {num_processors} {command}"
         print(mpi_command)
         process = subprocess.Popen(mpi_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         
