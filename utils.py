@@ -8,7 +8,7 @@ def compute_gradient(theta, sequences, L, q, N, ep):
     sum_prob_diffs = 0 # sum of all probability differences
     for n in range(N): # for all sequences
         sn = sequences[n,:] # extract nth row
-        sum_prob_diffs += energy_gradient(sn,q,params)
+        sum_prob_diffs += compute_adjacent_energy_gradient(sn,q,params)
     return ep*sum_prob_diffs/N
 
 def compute_objective(theta, sequences, L, q, N, ep):
@@ -100,6 +100,61 @@ def energy_gradient(s,q,params):
     gradient_vector = np.concatenate((fields.flatten(), couplings.flatten()))
     return(gradient_vector)
 
+def compute_adjacent_energy_gradient(s, q, params):
+    '''
+    Function to compute the gradients of the energy function with respect to the fields and couplings parameters.
+    
+    Inputs:
+        s = np.array, represents sequence of integers 1:q (NOT CURRENTLY 0:(q-1))
+        q = int, length of sequence
+        params = list, contains fields and couplings [fields.shape = (L,q), couplings.shape = (L,L,q,q)]
+                NOTE: only part of couplings(i,j,:,:) s.t. i<j is used (i.e. upper tri portion)
+    
+    Returns:
+        grad_fields = np.array, gradients of the energy function with respect to the fields parameters
+        grad_couplings = np.array, gradients of the energy function with respect to the couplings parameters
+    '''
+    L = s.shape[0]  # length of sequence
+    inp_fields = params[0]  # field params
+    inp_couplings = params[1]  # coupling params
+    
+    grad_fields = np.zeros_like(inp_fields)
+    grad_couplings = np.zeros_like(inp_couplings)
+    
+    for j in range(L):  # for each position to differ in
+        for qi in range(q):  # for each possible flip in this position
+            if qi == s[j]:
+                continue  # skip the case where qi = s[j]
+            
+            energy_diff_j = inp_fields[j, s[j]] - inp_fields[j, qi]  # add the field energy difference
+            
+            for i in range(j):  # for all positions s.t. i < j
+                # add difference from couplings
+                energy_diff_j += inp_couplings[i, j, s[i], s[j]] - inp_couplings[i, j, s[i], qi]
+            
+            for i in range(j+1, L):  # for all positions s.t. j < i
+                # add difference from couplings
+                # NOTE: indices have to be flipped to only use i<j portion of input couplings
+                energy_diff_j += inp_couplings[j, i, s[j], s[i]] - inp_couplings[j, i, qi, s[i]]
+            
+            prob_diff_j = np.exp(0.5 * energy_diff_j)  # probability difference for position j and value qi
+            
+            # update gradients for fields
+            grad_fields[j, s[j]] -= prob_diff_j
+            grad_fields[j, qi] += prob_diff_j
+            
+            # update gradients for couplings
+            for i in range(j):  # for all positions s.t. i < j
+                grad_couplings[i, j, s[i], s[j]] -= prob_diff_j
+                grad_couplings[i, j, s[i], qi] += prob_diff_j
+            
+            for i in range(j+1, L):  # for all positions s.t. j < i
+                grad_couplings[j, i, s[j], s[i]] -= prob_diff_j
+                grad_couplings[j, i, qi, s[i]] += prob_diff_j
+
+    gradient_vector = np.concatenate((grad_fields.flatten(), grad_couplings.flatten()))
+    return(-1*gradient_vector)
+
 def compute_energy(s,q,params):
     '''
     Function to compute the energy of a sequence s
@@ -148,3 +203,6 @@ def vector_to_tensor_array(vector, L, q):
     inp_fields = np.reshape(vector[:L*q], (L,q))
     inp_couplings = np.reshape(vector[L*q:], (L,L,q,q))
     return [inp_fields, inp_couplings]
+
+def moving_average(x, window):
+    return np.convolve(x, np.ones(window), 'valid') / window
