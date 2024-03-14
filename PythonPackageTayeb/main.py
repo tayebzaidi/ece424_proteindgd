@@ -135,18 +135,19 @@ def run_dgd_complete(comm, file_path, total_seqs, n_local_grad_steps):
 
         print(norm_couplings)
 
-    #     plt.imshow(norm_couplings)
-    #     plt.colorbar()
+        plt.imshow(norm_couplings)
+        plt.colorbar()
 
-    #     ax = plt.gca()
-    #     xticks = [0,1,2,3]
-    #     yticks = xticks
-    #     ax.set_xticks(xticks)
-    #     ax.set_yticks(yticks)
-    #     plt.show()
+        ax = plt.gca()
+        xticks = list(np.arange(L))
+        yticks = xticks
+        ax.set_xticks(xticks)
+        ax.set_yticks(yticks)
+        plt.title("MPF Inferred Couplings: L={},q={}".format(L,q))
+        plt.show()
 
-    #     plt.plot(avg_diff_values[1:])
-    #     plt.show()
+        #plt.plot(avg_diff_values[1:])
+        #plt.show()
 
     # plt.plot(np.trim_zeros(obj_values,'b'))
     # plt.plot(moving_average(np.trim_zeros(obj_values,'b'),n_steps))
@@ -324,8 +325,8 @@ def run_dgd_ring(comm, file_path, total_seqs, n_local_grad_steps):
 
 
 if __name__ == "__main__":
-    file_path = '../Experimentation/full_align_L10_q6.mat'
-    total_seqs = 8192
+    file_path = '../Experimentation/full_align_L6_q6.mat'
+    total_seqs = 1024
     n_steps = 15
     graph_structure = 'complete'
     comm = MPI.COMM_WORLD
@@ -334,7 +335,7 @@ if __name__ == "__main__":
 
     if rank == 0:
         print("Solving: Structure -- {}, Total Seqs -- {}, File -- {}, Local Steps -- {},".format(
-            graph_structure, total_seqs, file_path[-10:-4], n_steps))
+            graph_structure, total_seqs, file_path[-9:-4], n_steps))
 
     if graph_structure == 'ring':
         [total_time, consensus_iterations] = run_dgd_ring(comm, file_path, total_seqs, n_steps)
