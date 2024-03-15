@@ -16,7 +16,7 @@ from dgd_helpers import *
 
 
 if __name__ == "__main__":
-    num_processor_list = [2,4,8]
+    num_processor_list = [4]
 
     for num_processors in num_processor_list:
         command = f"python benchmarking_functions.py {num_processors}"

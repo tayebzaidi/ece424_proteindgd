@@ -23,7 +23,7 @@ def load_sim_data(file_path):
 
 def plot_benchmark_comparisons(benchmarks):
 
-
+    bench_matrix = np.zeros((6, 4))
     for i, benchmark in enumerate(benchmarks):
 
         sim_data_vals = load_sim_data(benchmark['file_path'])
@@ -71,10 +71,55 @@ def plot_benchmark_comparisons(benchmarks):
                 
             conv_data = benchmark
 
-        ### Select the set of items I want to plot -- Figure 2 Convergence
-        if set((10,10,'complete',8)) == set((L,q,graph_structure,num_processors)):
+        ### Select the set of items I want to plot -- Benchmark_vals
+        if set([1]) == set([1]):
             print("L{}q{}, total_seq {},num_procs {}, graph {}".format(L,q,total_seqs,num_processors, graph_structure))
             
+            if graph_structure=='complete':
+                if num_processors==1:
+                    row=0
+                elif num_processors==2:
+                    row=1
+                elif num_processors==4:
+                    row=2
+                elif num_processors==8:
+                    row=3
+            elif graph_structure=='ring':
+                if num_processors==4:
+                    row=4
+                elif num_processors==8:
+                    row=5
+        
+            if (5,4)==(L,q):
+                col=0
+            elif (6,6)==(L,q):
+                col=1
+            elif (6,10)==(L,q):
+                col=2
+            elif (10,10)==(L,q):
+                col=3
+            
+            bench_matrix[row,col] = benchmark['total_time']
+        
+        ### Select the set of items I want to plot -- Benchmark_vals
+        if set((6,6,8192)) == set((L,q,total_seqs)):
+            print("L{}q{}, total_seq {},num_procs {}, graph {}".format(L,q,total_seqs,num_processors, graph_structure))
+            
+            if graph_structure=='complete':
+                if num_processors==1:
+                    print("Saving serial")
+                    serial = benchmark
+                elif num_processors==2:
+                    c2 = benchmark
+                elif num_processors==4:
+                    c4 = benchmark
+                elif num_processors==8:
+                    c8 = benchmark
+            elif graph_structure=='ring':
+                if num_processors==4:
+                    r4 = benchmark
+                elif num_processors==8:
+                    r8 = benchmark
         continue
         
 
@@ -122,6 +167,9 @@ def plot_benchmark_comparisons(benchmarks):
         plt.title(f"Objective Values: L={L}, q={q}, Graph={benchmark['graph_structure']}, Steps={benchmark['n_steps']}")
         #plt.show()
 
+    ## Print benchmark matrix:
+    print(bench_matrix)
+
 
     ### Figure 1 -- Effect of total sequence number
     fig1 = plt.figure(1, figsize=(15,6))
@@ -162,7 +210,7 @@ def plot_benchmark_comparisons(benchmarks):
     cbar_ax = fig1.add_axes([0.92, 0.25, 0.02, 0.5])
     fig1.colorbar(im2, cax=cbar_ax)
     plt.savefig('../Figures/Figure1_TotalSeqComparison.png',dpi=300, bbox_inches='tight')
-    plt.show()
+    #plt.show()
 
 
     ## Convergence Figure
@@ -170,12 +218,12 @@ def plot_benchmark_comparisons(benchmarks):
     ax1, ax2 = fig2.subplots(1,2)
     L = conv_data['L']
     
-    ax1.plot(avg_diff_values[1:])
+    ax1.plot(conv_data['avg_diff_values'][1:])
     ax1.set_yscale('log')
     ax1.set_ylabel("Average Objective Difference",fontsize=16)
     ax1.set_xlabel("Consensus Iterations",fontsize=16)
 
-    ax2.plot(obj_values, 'b')
+    ax2.plot(conv_data['obj_values'], 'b')
     ax2.set_xlabel("Total Iterations",fontsize=16)
     ax2.set_ylabel("Local Objective Value",fontsize=16)
 
@@ -184,6 +232,36 @@ def plot_benchmark_comparisons(benchmarks):
     #plt.plot(moving_average(np.trim_zeros(obj_values, 'b'), benchmark['n_steps']))
 
     plt.savefig('../Figures/Figure2_ConvergenceL10q10.png',dpi=300, bbox_inches='tight')
+    #plt.show()
+
+    ## Convergence Figure -- Updated
+    fig3 = plt.figure(3, figsize=(15,5))
+    ax1, ax2 = fig3.subplots(1,2)
+    L = conv_data['L']
+    
+    ax1.plot(serial['avg_diff_values'][1:],color='b',label="Serial")
+    #ax1.plot(np.repeat(c2['avg_diff_values'][1:],c2['n_steps']),color='r')
+    #ax1.plot(np.repeat(c4['avg_diff_values'][1:],c4['n_steps']),color='r')
+    ax1.plot(np.repeat(c8['avg_diff_values'][1:],c8['n_steps'])[:-c8['n_steps']+1],color='r',label="C8")
+    print(c8['avg_diff_values'][1:])
+    #ax1.plot(np.repeat(r4['avg_diff_values'][1:],r4['n_steps']),color='g')
+    ax1.plot(np.repeat(r8['avg_diff_values'][1:],r8['n_steps'])[:-r8['n_steps']+1],color='g',label="R8")
+    ax1.legend()
+    ax1.set_yscale('log')
+    ax1.set_ylabel("Average Objective Difference",fontsize=16)
+    ax1.set_xlabel("Consensus Iterations",fontsize=16)
+    ax1.grid(visible=True,axis='y',alpha=0.8)
+
+    ax2.plot(c8['obj_values'], 'b')
+    ax2.set_xlabel("Total Iterations",fontsize=16)
+    ax2.set_ylabel("Local Objective Value",fontsize=16)
+    ax2.grid(visible=True,axis='y',alpha=0.8)
+
+    ax1.set_title(f"Overall Convergence",fontweight='bold',fontsize=20)
+    ax2.set_title(f"Local Objective (Node 0)",fontweight='bold',fontsize=20)
+    #plt.plot(moving_average(np.trim_zeros(obj_values, 'b'), benchmark['n_steps']))
+
+    plt.savefig('../Figures/Figure3_ConvergenceL6q6.png',dpi=300, bbox_inches='tight')
     plt.show()
 
 if __name__ == "__main__":

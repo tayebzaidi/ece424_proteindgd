@@ -17,7 +17,7 @@ sys.path.append(normalized_path)
 from utils import *
 from dgd_helpers import *
 
-def run_dgd(comm, file_path, total_seqs, n_local_grad_steps, graph_structure):
+def run_dgd(comm, file_path, total_seqs, n_local_grad_steps, graph_structure, num_processors):
     # MPI initialization
     size = comm.Get_size() # Total number of processes
     rank = comm.Get_rank() # The current process ID
@@ -87,7 +87,9 @@ def run_dgd(comm, file_path, total_seqs, n_local_grad_steps, graph_structure):
                     print("Local Gradient Step: {}, Objective Value: {:.7f}".format(step, local_obj_diff))
             
 
-        if graph_structure == 'complete':
+        if num_processors == 1: # Serial case
+            pass
+        elif graph_structure == 'complete':
             # Perform all-reduce to compute the sum of updated parameters across all processes
             consensus_theta = np.zeros_like(theta_k)
             comm.Allreduce(theta_k, consensus_theta, op=MPI.SUM)
@@ -226,8 +228,7 @@ def run_benchmarks(comm, file_paths, total_seqs_list, n_steps_list, graph_struct
             print("Solving: Structure -- {}, Total Seqs -- {}, File -- {}, Local Steps -- {},".format(
                 benchmark['graph_structure'], benchmark['total_seqs'], benchmark['file_path'][-10:-4], benchmark['n_steps']))
 
-
-        total_time, consensus_iterations, consensus_theta, avg_diff_values, obj_values, L, q = run_dgd(comm, benchmark['file_path'], benchmark['total_seqs'], benchmark['n_steps'], benchmark['graph_structure'])
+        total_time, consensus_iterations, consensus_theta, avg_diff_values, obj_values, L, q = run_dgd(comm, benchmark['file_path'], benchmark['total_seqs'], benchmark['n_steps'], benchmark['graph_structure'], num_processors)
 
         results.append({
             'total_time': total_time,
@@ -256,12 +257,12 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
-    #file_paths = ['../Experimentation/full_align_L5_q4.mat']#, '../Experimentation/full_align_L6_q6.mat']
-    file_paths = ['../Experimentation/full_align_L6_q10.mat', '../Experimentation/full_align_L10_q10.mat']
+    #file_paths = ['../Experimentation/full_align_L6_q6.mat']#, '../Experimentation/full_align_L6_q6.mat']
+    file_paths = ['../Experimentation/full_align_L6_q10.mat']#, '../Experimentation/full_align_L10_q10.mat']
     total_seqs_list = [8192]
-    n_steps_list = [15]
+    n_steps_list = [30]
     #graph_structures = ['ring','complete']
-    graph_structures = ['complete']
+    graph_structures = ['ring']
 
     results = run_benchmarks(comm, file_paths, total_seqs_list, n_steps_list, graph_structures, num_processors)
     # pr.disable()
