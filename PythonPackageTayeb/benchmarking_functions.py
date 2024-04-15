@@ -44,7 +44,7 @@ def run_dgd(comm, file_path, total_seqs, n_local_grad_steps, graph_structure, nu
 
     alpha = 1e-2; # stepsize
     max_iter = int(1e3); # maximum iterations (consensus steps)
-    tol = 1e-6; # tolerance criterion on objective differences
+    tol = 1e-4; # tolerance criterion on objective differences
 
     # start with initial parameter set
     init_fields = np.zeros((L,q))
@@ -58,9 +58,13 @@ def run_dgd(comm, file_path, total_seqs, n_local_grad_steps, graph_structure, nu
     n_steps = n_local_grad_steps
 
     # Initialize objective values
-    obj_val_prev = 1e9 #Large value
+    obj_val_prev = 1e9 #Large value to initialize objective
     obj_values = np.zeros(max_iter*n_steps)
     avg_diff_values = []
+
+    #Overload compute_objective and compute_gradient to either be vectorized/autodiffed or not
+    # compute_gradient = compute_gradient_vect
+    # compute_objective = compute_objective_vect
 
     # Distributed gradient descent loop
     for iteration in range(max_iter):
@@ -68,13 +72,23 @@ def run_dgd(comm, file_path, total_seqs, n_local_grad_steps, graph_structure, nu
         for step in range(n_steps):
             # Compute local gradients based on local data and model parameters
             local_gradient = compute_gradient(theta_k, sequence_data, L, q, N, ep)
+            # local_gradient_vect = compute_gradient_vect(theta_k, sequence_data, L, q, N, ep)
+            # if rank == 0:
+            #     print(type(local_gradient))
 
+            alpha = 1
+ 
             # Perform line search to determine the step size
-            res = sp.optimize.line_search(compute_objective, compute_gradient, theta_k, -local_gradient,
-                                        args=(sequence_data, L, q, N, ep))
-            alpha = res[0]
+            # res = sp.optimize.line_search(compute_objective_vect, compute_gradient_vect, theta_k, -local_gradient,
+            #                             args=(sequence_data, L, q, N, ep))
+            # res_vect = sp.optimize.line_search(compute_objective_vect, compute_gradient_vect, theta_k, -local_gradient_vect,
+            #                             args=(sequence_data, L, q, N, ep))
+            # if rank == 0:
+            #     print("   ", res[0], res_vect[0], res[4], res_vect[4])
+            # alpha = res[0]
             # Update the previous objective value
-            obj_values[iteration*n_steps+step] = res[4]
+            # obj_values[iteration*n_steps+step] = res[4]
+            obj_values[iteration*n_steps+step] = compute_objective(theta_k, sequence_data, L, q, N, ep)
             #print("Node {}: Alpha: {:.4f}".format(rank, alpha))
 
             # Update model parameters using the local step size
@@ -84,8 +98,10 @@ def run_dgd(comm, file_path, total_seqs, n_local_grad_steps, graph_structure, nu
                 # Print the iteration and average objective value difference
                 if step % 2 == 0:
                     local_obj_diff = np.abs(obj_values[iteration*n_steps+step] - obj_values[iteration*n_steps+step-1])
-                    print("Local Gradient Step: {}, Objective Value: {:.7f}".format(step, local_obj_diff))
+                    print("Local Gradient Step: {}, Objective Value: {:.7f}, Stepsize: {}".format(step, local_obj_diff, alpha))
             
+        #Convert back from jax to numpy array
+        theta_k = np.array(theta_k)
 
         if num_processors == 1: # Serial case
             pass
@@ -118,7 +134,10 @@ def run_dgd(comm, file_path, total_seqs, n_local_grad_steps, graph_structure, nu
             theta_k = (theta_k + recv_buffer_left + recv_buffer_right) / 3
 
         # Compute the current and previous objective values (from the line search just run previously) and gather differences
-        obj_val_curr = compute_objective(theta_k, sequence_data, L, q, N, ep)
+        obj_val_curr = compute_objective_vect(theta_k, sequence_data, L, q, N, ep)
+        # obj_val_curr_vect = compute_objective_vect(theta_k, sequence_data, L, q, N, ep)
+        # if rank == 0:
+        #     print(obj_val_curr, obj_val_curr_vect)
         obj_val_diff = np.abs(obj_val_prev - obj_val_curr)
         obj_val_diffs = comm.gather(obj_val_diff, root=0)
 
@@ -258,11 +277,12 @@ if __name__ == "__main__":
     rank = comm.Get_rank()
 
     #file_paths = ['../Experimentation/full_align_L6_q6.mat']#, '../Experimentation/full_align_L6_q6.mat']
-    file_paths = ['../Experimentation/full_align_L6_q10.mat']#, '../Experimentation/full_align_L10_q10.mat']
+    file_paths = ['../Experimentation/full_align_L10_q10.mat']#, '../Experimentation/full_align_L10_q10.mat']
     total_seqs_list = [8192]
     n_steps_list = [30]
     #graph_structures = ['ring','complete']
-    graph_structures = ['ring']
+    graph_structures = ['complete']
+    print(file_paths)
 
     results = run_benchmarks(comm, file_paths, total_seqs_list, n_steps_list, graph_structures, num_processors)
     # pr.disable()

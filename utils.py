@@ -1,7 +1,15 @@
 import numpy as np
+
 import scipy as sp
 import scipy.io
 from scipy.optimize import minimize
+
+from functools import partial
+
+import jax
+jax.config.update("jax_enable_x64", True)
+import jax.numpy as jnp
+from jax import grad, jit, random
 
 def compute_gradient(theta, sequences, L, q, N, ep):
     params = vector_to_tensor_array(theta, L, q)
@@ -18,6 +26,80 @@ def compute_objective(theta, sequences, L, q, N, ep):
         sn = sequences[n,:] # extract nth row
         sum_prob_diffs += compute_adjacent_energy(sn,q,params)
     return ep*sum_prob_diffs/N
+
+@partial(jit, static_argnums=1)
+def generate_adjacent_sequences_jax(sequences, q):
+    N, L = sequences.shape
+    num_flips = q * L
+    
+    # Create a matrix of size (N, num_flips, L) with the original sequences repeated
+    sequences_matrix = jnp.repeat(sequences[:, jnp.newaxis, :], num_flips, axis=1)
+    
+    # Create a matrix of size (N, num_flips, L) with diagonal elements set to 1, 2, ..., q-1
+    diagonal_indices = jnp.tile(jnp.arange(num_flips) % L, (N, 1))
+    diagonal_values = jnp.tile(jnp.repeat(jnp.arange(q), L), (N, 1))
+    diagonal_matrix = jnp.zeros((N, num_flips, L), dtype=int)
+    diagonal_matrix = diagonal_matrix.at[jnp.arange(N)[:, jnp.newaxis], jnp.arange(num_flips), diagonal_indices].set(diagonal_values)
+    #diagonal_matrix[jnp.arange(N)[:, jnp.newaxis], jnp.arange(num_flips), diagonal_indices] = diagonal_values
+    
+    # Add the diagonal matrix to the repeated sequences matrix modulo q
+    adjacent_sequences = (sequences_matrix + diagonal_matrix) % q
+    
+    return adjacent_sequences
+
+def compute_objective_vect(theta, sequences, L, q, N, ep):
+    N, L = sequences.shape
+    fields, couplings = vector_to_tensor_array(theta, L, q)
+    num_flips = q * L
+    adjacent_sequences = generate_adjacent_sequences_jax(sequences, q)
+    
+    # Compute the energy of the original sequences
+    #print(sequences,fields.shape)
+    field_energy = jnp.sum(fields[jnp.arange(L), sequences], axis=1)
+    
+    # Compute the coupling contribution to the energy
+    upper_indices = jnp.triu_indices(L, k=1)
+    selected_couplings = couplings[upper_indices[0], upper_indices[1]]
+    num_pairs = len(upper_indices[0])
+    
+    seq_pairs = sequences[:, upper_indices]
+    coupling_energy = jnp.sum(selected_couplings[jnp.arange(selected_couplings.shape[0]), seq_pairs[:, 0, :], seq_pairs[:, 1, :]], axis=1)
+        
+    # Compute the total energy
+    energy_original = field_energy + coupling_energy    
+    
+    # Repeat the energy of the original sequences to match the shape of adjacent_sequences
+    energy_original_repeated = jnp.repeat(energy_original[:, jnp.newaxis], num_flips, axis=1)
+    #print(energy_original_repeated)
+    
+    # Compute the energy of the adjacent sequences
+    energy_adjacent_fields = jnp.sum(fields[jnp.arange(L), adjacent_sequences], axis=2)
+    
+    # Reshape the adjacent sequences to (N * num_flips, L)
+    adj_seq_reshaped = adjacent_sequences.reshape(N * num_flips, L)
+    
+    # Select the corresponding elements from the reshaped adjacent sequences for the pairs of positions
+    adj_seq_pairs = adj_seq_reshaped[:, upper_indices]
+    
+    # Compute the coupling energy for each adjacent sequence
+    energy_adjacent_couplings = jnp.sum(selected_couplings[jnp.arange(num_pairs), adj_seq_pairs[:, 0, :], adj_seq_pairs[:, 1, :]], axis=1)
+    energy_adjacent_couplings = energy_adjacent_couplings.reshape(N,(q)*L)
+    
+    energy_adjacent = energy_adjacent_fields + energy_adjacent_couplings
+    #print(energy_adjacent,energy_original_repeated)
+    
+    # Compute the energy difference
+    energy_diff = jnp.exp(0.5*(energy_original_repeated - energy_adjacent))
+    #print(np.sum(energy_diff,axis=1))
+    
+    return (jnp.sum(energy_diff))*ep/N - 1 #Accounting for the case of identical adjacent sequences
+
+#Generate gradient function using autodiff in Jax
+grad_objective_vect = grad(compute_objective_vect)
+grad_objective_vect_jit = jit(grad_objective_vect, static_argnums=(2,3,4,5))
+
+def compute_gradient_vect(theta, sequences, L, q, N, ep):
+    return 2*grad_objective_vect_jit(theta, sequences, L, q, N, ep)
 
 def compute_adjacent_energy(s,q,params):
     '''
